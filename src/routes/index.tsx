@@ -118,7 +118,14 @@ function Home() {
                   className={`panel flex flex-col p-6 ${plan.highlight ? "glow" : ""}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xl font-semibold">{plan.name}</h3>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <img
+                        src="/lovable-color.svg"
+                        alt="Lovable"
+                        className="size-5 shrink-0"
+                      />
+                      <h3 className="truncate text-xl font-semibold">{plan.name}</h3>
+                    </div>
                     {hasPromo && (
                       <Badge className="bg-accent text-accent-foreground">
                         {plan.promo_label || "Promoção"}
