@@ -9,6 +9,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/hooks/useAccount";
 import { AppShell } from "@/components/AppShell";
+import { Clients } from "@/components/admin/Clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,14 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { brl, formatDate, parseBrlToCents } from "@/lib/format";
 
 type Plan = Tables<"plans">;
@@ -56,10 +50,12 @@ function AdminPage() {
           <TabsTrigger value="revendas">Revendas</TabsTrigger>
           <TabsTrigger value="planos">Planos e promoções</TabsTrigger>
           <TabsTrigger value="vendas">Todas as vendas</TabsTrigger>
+          <TabsTrigger value="clientes">Clientes</TabsTrigger>
         </TabsList>
         <TabsContent value="revendas" className="pt-6"><Resellers /></TabsContent>
         <TabsContent value="planos" className="pt-6"><Plans /></TabsContent>
         <TabsContent value="vendas" className="pt-6"><AllSales /></TabsContent>
+        <TabsContent value="clientes" className="pt-6"><Clients /></TabsContent>
       </Tabs>
     </AppShell>
   );
@@ -73,10 +69,7 @@ function AdminSummary() {
         supabase.from("resellers").select("id, active, credits_balance"),
         supabase.from("sales").select("amount_cents, commission_cents"),
       ]);
-      return {
-        resellers: resellers ?? [],
-        sales: sales ?? [],
-      };
+      return { resellers: resellers ?? [], sales: sales ?? [] };
     },
   });
   const salesTotal = data?.sales.reduce((sum, sale) => sum + sale.amount_cents, 0) ?? 0;
@@ -126,19 +119,13 @@ function Resellers() {
       const { error } = await supabase.from("credit_movements").insert({ reseller_id: creditTarget.id, delta, reason: delta > 0 ? "carga" : "ajuste", note: note.trim() || null, created_by: userData.user?.id ?? null });
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Saldo atualizado");
-      setCreditTarget(null); setCredits(""); setNote(""); queryClient.invalidateQueries();
-    },
+    onSuccess: () => { toast.success("Saldo atualizado"); setCreditTarget(null); setCredits(""); setNote(""); queryClient.invalidateQueries(); },
     onError: (error: Error) => toast.error(error.message),
   });
 
   async function toggle(reseller: Reseller) {
     const { error } = await supabase.from("resellers").update({ active: !reseller.active, updated_at: new Date().toISOString() }).eq("id", reseller.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    if (error) { toast.error(error.message); return; }
     queryClient.invalidateQueries();
   }
 
@@ -190,7 +177,7 @@ function PlanForm({ plan, onDone }: { plan: Plan | null; onDone: () => void }) {
 
 function AllSales() {
   const { data } = useQuery({ queryKey: ["admin-sales"], queryFn: async () => { const { data, error } = await supabase.from("sales").select("*, resellers(name)").order("created_at", { ascending: false }); if (error) throw error; return data; } });
-  return <div className="panel divide-y divide-border/60">{(data ?? []).map((sale) => <div key={sale.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><div><p className="font-medium">{sale.customer_name} · {sale.plan_name}</p><p className="text-muted-foreground">{sale.resellers?.name ?? "Revenda"} · {formatDate(sale.created_at)} · {sale.credits} créditos</p></div><div className="text-right"><p className="font-semibold">{brl(sale.amount_cents)}</p><p className="text-xs text-muted-foreground">comissão {brl(sale.commission_cents)}</p></div></div>)}{!data?.length && <p className="p-4 text-sm text-muted-foreground">Nenhuma venda registrada.</p>}</div>;
+  return <div className="panel divide-y divide-border/60">{(data ?? []).map((sale) => <div key={sale.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><div><p className="font-medium">{sale.customer_name} · {sale.plan_name}</p><p className="text-muted-foreground">{sale.resellers?.name ?? "Revenda"} · {formatDate(sale.created_at)} · {sale.credits} créditos · {sale.status}</p></div><div className="text-right"><p className="font-semibold">{brl(sale.amount_cents)}</p><p className="text-xs text-muted-foreground">comissão {brl(sale.commission_cents)}</p></div></div>)}{!data?.length && <p className="p-4 text-sm text-muted-foreground">Nenhuma venda registrada.</p>}</div>;
 }
 
 function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
