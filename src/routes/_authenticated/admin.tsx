@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/hooks/useAccount";
 import { AppShell } from "@/components/AppShell";
 import { Clients } from "@/components/admin/Clients";
+import { PixManagement } from "@/components/admin/PixManagement";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,16 +25,14 @@ type Plan = Tables<"plans">;
 type Reseller = Tables<"resellers">;
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => ({
-    meta: [
-      { title: "Administração — Kredon" },
-      { name: "description", content: "Gerencie planos, promoções, revendas, comissões e créditos." },
-      { property: "og:title", content: "Administração — Kredon" },
-      { property: "og:description", content: "Gestão completa da plataforma de créditos Kredon." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
+  head: () => ({ meta: [
+    { title: "Administração — Kredon" },
+    { name: "description", content: "Gerencie planos, promoções, revendas, clientes, Pix e comissões." },
+    { property: "og:title", content: "Administração — Kredon" },
+    { property: "og:description", content: "Gestão completa da plataforma de créditos Kredon." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary_large_image" },
+  ]}),
   component: AdminPage,
 });
 
@@ -42,46 +41,41 @@ function AdminPage() {
   if (isLoading) return <AppShell title="Administração"><p className="text-muted-foreground">Carregando…</p></AppShell>;
   if (!account?.isAdmin) return <Navigate to="/painel" replace />;
 
-  return (
-    <AppShell title="Administração">
-      <AdminSummary />
-      <Tabs defaultValue="planos" className="mt-8">
-        <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="revendas">Revendas</TabsTrigger>
-          <TabsTrigger value="planos">Planos e promoções</TabsTrigger>
-          <TabsTrigger value="vendas">Todas as vendas</TabsTrigger>
-          <TabsTrigger value="clientes">Clientes</TabsTrigger>
-        </TabsList>
-        <TabsContent value="revendas" className="pt-6"><Resellers /></TabsContent>
-        <TabsContent value="planos" className="pt-6"><Plans /></TabsContent>
-        <TabsContent value="vendas" className="pt-6"><AllSales /></TabsContent>
-        <TabsContent value="clientes" className="pt-6"><Clients /></TabsContent>
-      </Tabs>
-    </AppShell>
-  );
+  return <AppShell title="Administração">
+    <AdminSummary />
+    <Tabs defaultValue="planos" className="mt-8">
+      <TabsList className="h-auto flex-wrap">
+        <TabsTrigger value="revendas">Revendas</TabsTrigger>
+        <TabsTrigger value="planos">Planos e promoções</TabsTrigger>
+        <TabsTrigger value="vendas">Todas as vendas</TabsTrigger>
+        <TabsTrigger value="clientes">Clientes</TabsTrigger>
+        <TabsTrigger value="pix">Pix / Asaas</TabsTrigger>
+      </TabsList>
+      <TabsContent value="revendas" className="pt-6"><Resellers /></TabsContent>
+      <TabsContent value="planos" className="pt-6"><Plans /></TabsContent>
+      <TabsContent value="vendas" className="pt-6"><AllSales /></TabsContent>
+      <TabsContent value="clientes" className="pt-6"><Clients /></TabsContent>
+      <TabsContent value="pix" className="pt-6"><PixManagement /></TabsContent>
+    </Tabs>
+  </AppShell>;
 }
 
 function AdminSummary() {
-  const { data } = useQuery({
-    queryKey: ["admin-summary"],
-    queryFn: async () => {
-      const [{ data: resellers }, { data: sales }] = await Promise.all([
-        supabase.from("resellers").select("id, active, credits_balance"),
-        supabase.from("sales").select("amount_cents, commission_cents"),
-      ]);
-      return { resellers: resellers ?? [], sales: sales ?? [] };
-    },
-  });
+  const { data } = useQuery({ queryKey: ["admin-summary"], queryFn: async () => {
+    const [{ data: resellers }, { data: sales }] = await Promise.all([
+      supabase.from("resellers").select("id, active, credits_balance"),
+      supabase.from("sales").select("amount_cents, commission_cents"),
+    ]);
+    return { resellers: resellers ?? [], sales: sales ?? [] };
+  }});
   const salesTotal = data?.sales.reduce((sum, sale) => sum + sale.amount_cents, 0) ?? 0;
   const commissions = data?.sales.reduce((sum, sale) => sum + sale.commission_cents, 0) ?? 0;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Metric label="Revendas ativas" value={String(data?.resellers.filter((r) => r.active).length ?? 0)} />
-      <Metric label="Créditos nas revendas" value={String(data?.resellers.reduce((sum, r) => sum + r.credits_balance, 0) ?? 0)} />
-      <Metric label="Vendas registradas" value={brl(salesTotal)} />
-      <Metric label="Comissões" value={brl(commissions)} />
-    </div>
-  );
+  return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <Metric label="Revendas ativas" value={String(data?.resellers.filter((r) => r.active).length ?? 0)} />
+    <Metric label="Créditos nas revendas" value={String(data?.resellers.reduce((sum, r) => sum + r.credits_balance, 0) ?? 0)} />
+    <Metric label="Vendas registradas" value={brl(salesTotal)} />
+    <Metric label="Comissões" value={brl(commissions)} />
+  </div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -102,21 +96,17 @@ function Resellers() {
   const [creditTarget, setCreditTarget] = useState<Reseller | null>(null);
   const [credits, setCredits] = useState("");
   const [note, setNote] = useState("");
-  const { data } = useQuery({
-    queryKey: ["admin-resellers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("resellers").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data } = useQuery({ queryKey: ["admin-resellers"], queryFn: async () => {
+    const { data, error } = await supabase.from("resellers").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return data;
+  }});
 
   const addCredits = useMutation({
     mutationFn: async () => {
       if (!creditTarget) throw new Error("Escolha a revenda");
       const delta = z.coerce.number().int().refine((value) => value !== 0, "Informe uma quantidade diferente de zero").parse(credits);
-      const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase.from("credit_movements").insert({ reseller_id: creditTarget.id, delta, reason: delta > 0 ? "carga" : "ajuste", note: note.trim() || null, created_by: userData.user?.id ?? null });
+      const { error } = await supabase.rpc("admin_adjust_credits_secure", { p_reseller_id: creditTarget.id, p_delta: delta, p_reason: delta > 0 ? "carga" : "ajuste", p_note: note.trim() || null });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Saldo atualizado"); setCreditTarget(null); setCredits(""); setNote(""); queryClient.invalidateQueries(); },
@@ -129,34 +119,16 @@ function Resellers() {
     queryClient.invalidateQueries();
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end"><Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-1 size-4" />Nova revenda</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Cadastrar revenda</DialogTitle><DialogDescription>O revendedor deve criar a conta usando exatamente este e-mail.</DialogDescription></DialogHeader><ResellerForm onDone={() => { setOpen(false); queryClient.invalidateQueries(); }} /></DialogContent></Dialog></div>
-      <div className="panel divide-y divide-border/60 overflow-hidden">
-        {(data ?? []).map((reseller) => (
-          <div key={reseller.id} className="flex flex-wrap items-center justify-between gap-4 p-4">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-medium">{reseller.name}</p><Badge variant={reseller.active ? "default" : "secondary"}>{reseller.active ? "Ativa" : "Inativa"}</Badge><Badge variant="outline">{reseller.user_id ? "Conta vinculada" : "Aguardando cadastro"}</Badge></div><p className="truncate text-sm text-muted-foreground">{reseller.email} · comissão {reseller.commission_pct}%</p></div>
-            <div className="flex flex-wrap items-center gap-2"><span className="mr-2 font-display text-xl font-semibold">{reseller.credits_balance} créditos</span><Button size="sm" variant="outline" onClick={() => setCreditTarget(reseller)}><WalletCards className="mr-1 size-4" />Créditos</Button><Button size="sm" variant="outline" onClick={() => toggle(reseller)}>{reseller.active ? "Desativar" : "Ativar"}</Button></div>
-          </div>
-        ))}
-        {!data?.length && <p className="p-4 text-sm text-muted-foreground">Nenhuma revenda cadastrada.</p>}
-      </div>
-      <Dialog open={!!creditTarget} onOpenChange={(value) => !value && setCreditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Ajustar créditos</DialogTitle><DialogDescription>{creditTarget?.name} possui {creditTarget?.credits_balance} créditos. Use valor negativo para retirar.</DialogDescription></DialogHeader><div className="space-y-4"><Field label="Quantidade" value={credits} onChange={setCredits} type="number" /><div className="space-y-2"><Label>Motivo</Label><Textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={300} /></div><Button className="w-full" disabled={addCredits.isPending} onClick={() => addCredits.mutate()}>Confirmar ajuste</Button></div></DialogContent></Dialog>
-    </div>
-  );
+  return <div className="space-y-4">
+    <div className="flex justify-end"><Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-1 size-4" />Nova revenda</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Cadastrar revenda</DialogTitle><DialogDescription>O revendedor deve criar a conta usando exatamente este e-mail.</DialogDescription></DialogHeader><ResellerForm onDone={() => { setOpen(false); queryClient.invalidateQueries(); }} /></DialogContent></Dialog></div>
+    <div className="panel divide-y divide-border/60 overflow-hidden">{(data ?? []).map((reseller) => <div key={reseller.id} className="flex flex-wrap items-center justify-between gap-4 p-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-medium">{reseller.name}</p><Badge variant={reseller.active ? "default" : "secondary"}>{reseller.active ? "Ativa" : "Inativa"}</Badge><Badge variant="outline">{reseller.user_id ? "Conta vinculada" : "Aguardando cadastro"}</Badge></div><p className="truncate text-sm text-muted-foreground">{reseller.email} · comissão {reseller.commission_pct}%</p></div><div className="flex flex-wrap items-center gap-2"><span className="mr-2 font-display text-xl font-semibold">{reseller.credits_balance} créditos</span><Button size="sm" variant="outline" onClick={() => setCreditTarget(reseller)}><WalletCards className="mr-1 size-4" />Créditos</Button><Button size="sm" variant="outline" onClick={() => toggle(reseller)}>{reseller.active ? "Desativar" : "Ativar"}</Button></div></div>)}{!data?.length && <p className="p-4 text-sm text-muted-foreground">Nenhuma revenda cadastrada.</p>}</div>
+    <Dialog open={!!creditTarget} onOpenChange={(value) => !value && setCreditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Ajustar créditos</DialogTitle><DialogDescription>{creditTarget?.name} possui {creditTarget?.credits_balance} créditos. Use valor negativo para retirar.</DialogDescription></DialogHeader><div className="space-y-4"><Field label="Quantidade" value={credits} onChange={setCredits} type="number" /><div className="space-y-2"><Label>Motivo</Label><Textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={300} /></div><Button className="w-full" disabled={addCredits.isPending} onClick={() => addCredits.mutate()}>Confirmar ajuste</Button></div></DialogContent></Dialog>
+  </div>;
 }
 
 function ResellerForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [phone, setPhone] = useState(""); const [document, setDocument] = useState(""); const [commission, setCommission] = useState("10");
-  const save = useMutation({
-    mutationFn: async () => {
-      const input = resellerSchema.parse({ name, email, phone, document, commission });
-      const { error } = await supabase.from("resellers").insert({ name: input.name, email: input.email.toLowerCase(), phone: input.phone || null, document: input.document || null, commission_pct: input.commission });
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("Revenda cadastrada"); onDone(); },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const save = useMutation({ mutationFn: async () => { const input = resellerSchema.parse({ name, email, phone, document, commission }); const { error } = await supabase.from("resellers").insert({ name: input.name, email: input.email.toLowerCase(), phone: input.phone || null, document: input.document || null, commission_pct: input.commission }); if (error) throw error; }, onSuccess: () => { toast.success("Revenda cadastrada"); onDone(); }, onError: (error: Error) => toast.error(error.message) });
   return <div className="grid gap-4 sm:grid-cols-2"><Field label="Nome" value={name} onChange={setName} /><Field label="E-mail" value={email} onChange={setEmail} type="email" /><Field label="Telefone" value={phone} onChange={setPhone} /><Field label="CPF/CNPJ" value={document} onChange={setDocument} /><Field label="Comissão (%)" value={commission} onChange={setCommission} type="number" /><Button className="self-end" onClick={() => save.mutate()} disabled={save.isPending}>Cadastrar</Button></div>;
 }
 
