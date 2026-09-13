@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789260420049,
+      "tag": "0000_secure_reseller_sales_and_account_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789260454068,
+      "tag": "0001_preserve_inactive_reseller_history",
+      "breakpoints": true
+    }
+  ]
+}

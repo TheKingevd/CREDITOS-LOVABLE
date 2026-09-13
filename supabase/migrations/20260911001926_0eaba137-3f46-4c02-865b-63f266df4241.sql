@@ -1,0 +1,10 @@
+REVOKE ALL ON FUNCTION public.apply_credit_movement() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.consume_sale_credits() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.claim_admin() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.link_reseller_account() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.current_reseller_id() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.claim_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.link_reseller_account() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.current_reseller_id() TO authenticated;
